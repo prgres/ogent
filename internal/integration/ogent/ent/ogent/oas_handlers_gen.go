@@ -7,11 +7,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-faster/errors"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.19.0"
 	"go.opentelemetry.io/otel/trace"
 
+	ht "github.com/ogen-go/ogen/http"
 	"github.com/ogen-go/ogen/middleware"
 	"github.com/ogen-go/ogen/ogenerrors"
 	"github.com/ogen-go/ogen/otelogen"
@@ -22,7 +25,7 @@ import (
 // Creates a new AllTypes and persists it to storage.
 //
 // POST /all-types
-func (s *Server) handleCreateAllTypesRequest(args [0]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleCreateAllTypesRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("createAllTypes"),
 		semconv.HTTPMethodKey.String("POST"),
@@ -36,21 +39,28 @@ func (s *Server) handleCreateAllTypesRequest(args [0]string, w http.ResponseWrit
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -64,7 +74,7 @@ func (s *Server) handleCreateAllTypesRequest(args [0]string, w http.ResponseWrit
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeRequest", err)
+		defer recordError("DecodeRequest", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -77,12 +87,13 @@ func (s *Server) handleCreateAllTypesRequest(args [0]string, w http.ResponseWrit
 	var response CreateAllTypesRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "CreateAllTypes",
-			OperationID:   "createAllTypes",
-			Body:          request,
-			Params:        middleware.Parameters{},
-			Raw:           r,
+			Context:          ctx,
+			OperationName:    "CreateAllTypes",
+			OperationSummary: "Create a new AllTypes",
+			OperationID:      "createAllTypes",
+			Body:             request,
+			Params:           middleware.Parameters{},
+			Raw:              r,
 		}
 
 		type (
@@ -107,14 +118,16 @@ func (s *Server) handleCreateAllTypesRequest(args [0]string, w http.ResponseWrit
 		response, err = s.h.CreateAllTypes(ctx, request)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeCreateAllTypesResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -124,7 +137,7 @@ func (s *Server) handleCreateAllTypesRequest(args [0]string, w http.ResponseWrit
 // Creates a new Category and persists it to storage.
 //
 // POST /categories
-func (s *Server) handleCreateCategoryRequest(args [0]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleCreateCategoryRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("createCategory"),
 		semconv.HTTPMethodKey.String("POST"),
@@ -138,21 +151,28 @@ func (s *Server) handleCreateCategoryRequest(args [0]string, w http.ResponseWrit
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -166,7 +186,7 @@ func (s *Server) handleCreateCategoryRequest(args [0]string, w http.ResponseWrit
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeRequest", err)
+		defer recordError("DecodeRequest", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -179,12 +199,13 @@ func (s *Server) handleCreateCategoryRequest(args [0]string, w http.ResponseWrit
 	var response CreateCategoryRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "CreateCategory",
-			OperationID:   "createCategory",
-			Body:          request,
-			Params:        middleware.Parameters{},
-			Raw:           r,
+			Context:          ctx,
+			OperationName:    "CreateCategory",
+			OperationSummary: "Create a new Category",
+			OperationID:      "createCategory",
+			Body:             request,
+			Params:           middleware.Parameters{},
+			Raw:              r,
 		}
 
 		type (
@@ -209,14 +230,16 @@ func (s *Server) handleCreateCategoryRequest(args [0]string, w http.ResponseWrit
 		response, err = s.h.CreateCategory(ctx, request)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeCreateCategoryResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -226,7 +249,7 @@ func (s *Server) handleCreateCategoryRequest(args [0]string, w http.ResponseWrit
 // Creates a new Hat and persists it to storage.
 //
 // POST /hats
-func (s *Server) handleCreateHatRequest(args [0]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleCreateHatRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("createHat"),
 		semconv.HTTPMethodKey.String("POST"),
@@ -240,21 +263,28 @@ func (s *Server) handleCreateHatRequest(args [0]string, w http.ResponseWriter, r
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -268,7 +298,7 @@ func (s *Server) handleCreateHatRequest(args [0]string, w http.ResponseWriter, r
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeRequest", err)
+		defer recordError("DecodeRequest", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -281,12 +311,13 @@ func (s *Server) handleCreateHatRequest(args [0]string, w http.ResponseWriter, r
 	var response CreateHatRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "CreateHat",
-			OperationID:   "createHat",
-			Body:          request,
-			Params:        middleware.Parameters{},
-			Raw:           r,
+			Context:          ctx,
+			OperationName:    "CreateHat",
+			OperationSummary: "Create a new Hat",
+			OperationID:      "createHat",
+			Body:             request,
+			Params:           middleware.Parameters{},
+			Raw:              r,
 		}
 
 		type (
@@ -311,14 +342,16 @@ func (s *Server) handleCreateHatRequest(args [0]string, w http.ResponseWriter, r
 		response, err = s.h.CreateHat(ctx, request)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeCreateHatResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -328,7 +361,7 @@ func (s *Server) handleCreateHatRequest(args [0]string, w http.ResponseWriter, r
 // Creates a new Pet and persists it to storage.
 //
 // POST /pets
-func (s *Server) handleCreatePetRequest(args [0]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleCreatePetRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("createPet"),
 		semconv.HTTPMethodKey.String("POST"),
@@ -342,21 +375,28 @@ func (s *Server) handleCreatePetRequest(args [0]string, w http.ResponseWriter, r
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -370,7 +410,7 @@ func (s *Server) handleCreatePetRequest(args [0]string, w http.ResponseWriter, r
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeRequest", err)
+		defer recordError("DecodeRequest", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -383,12 +423,13 @@ func (s *Server) handleCreatePetRequest(args [0]string, w http.ResponseWriter, r
 	var response CreatePetRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "CreatePet",
-			OperationID:   "createPet",
-			Body:          request,
-			Params:        middleware.Parameters{},
-			Raw:           r,
+			Context:          ctx,
+			OperationName:    "CreatePet",
+			OperationSummary: "Create a new Pet",
+			OperationID:      "createPet",
+			Body:             request,
+			Params:           middleware.Parameters{},
+			Raw:              r,
 		}
 
 		type (
@@ -413,14 +454,16 @@ func (s *Server) handleCreatePetRequest(args [0]string, w http.ResponseWriter, r
 		response, err = s.h.CreatePet(ctx, request)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeCreatePetResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -430,7 +473,7 @@ func (s *Server) handleCreatePetRequest(args [0]string, w http.ResponseWriter, r
 // Creates a new User and persists it to storage.
 //
 // POST /users
-func (s *Server) handleCreateUserRequest(args [0]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleCreateUserRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("createUser"),
 		semconv.HTTPMethodKey.String("POST"),
@@ -444,21 +487,28 @@ func (s *Server) handleCreateUserRequest(args [0]string, w http.ResponseWriter, 
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -472,7 +522,7 @@ func (s *Server) handleCreateUserRequest(args [0]string, w http.ResponseWriter, 
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeRequest", err)
+		defer recordError("DecodeRequest", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -485,12 +535,13 @@ func (s *Server) handleCreateUserRequest(args [0]string, w http.ResponseWriter, 
 	var response CreateUserRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "CreateUser",
-			OperationID:   "createUser",
-			Body:          request,
-			Params:        middleware.Parameters{},
-			Raw:           r,
+			Context:          ctx,
+			OperationName:    "CreateUser",
+			OperationSummary: "Create a new User",
+			OperationID:      "createUser",
+			Body:             request,
+			Params:           middleware.Parameters{},
+			Raw:              r,
 		}
 
 		type (
@@ -515,14 +566,16 @@ func (s *Server) handleCreateUserRequest(args [0]string, w http.ResponseWriter, 
 		response, err = s.h.CreateUser(ctx, request)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeCreateUserResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -532,7 +585,7 @@ func (s *Server) handleCreateUserRequest(args [0]string, w http.ResponseWriter, 
 // Deletes the AllTypes with the requested ID.
 //
 // DELETE /all-types/{id}
-func (s *Server) handleDeleteAllTypesRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleDeleteAllTypesRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("deleteAllTypes"),
 		semconv.HTTPMethodKey.String("DELETE"),
@@ -546,21 +599,28 @@ func (s *Server) handleDeleteAllTypesRequest(args [1]string, w http.ResponseWrit
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -568,13 +628,13 @@ func (s *Server) handleDeleteAllTypesRequest(args [1]string, w http.ResponseWrit
 			ID:   "deleteAllTypes",
 		}
 	)
-	params, err := decodeDeleteAllTypesParams(args, r)
+	params, err := decodeDeleteAllTypesParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -582,10 +642,11 @@ func (s *Server) handleDeleteAllTypesRequest(args [1]string, w http.ResponseWrit
 	var response DeleteAllTypesRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "DeleteAllTypes",
-			OperationID:   "deleteAllTypes",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "DeleteAllTypes",
+			OperationSummary: "Deletes a AllTypes by ID",
+			OperationID:      "deleteAllTypes",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -617,14 +678,16 @@ func (s *Server) handleDeleteAllTypesRequest(args [1]string, w http.ResponseWrit
 		response, err = s.h.DeleteAllTypes(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeDeleteAllTypesResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -634,7 +697,7 @@ func (s *Server) handleDeleteAllTypesRequest(args [1]string, w http.ResponseWrit
 // Deletes the Category with the requested ID.
 //
 // DELETE /categories/{id}
-func (s *Server) handleDeleteCategoryRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleDeleteCategoryRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("deleteCategory"),
 		semconv.HTTPMethodKey.String("DELETE"),
@@ -648,21 +711,28 @@ func (s *Server) handleDeleteCategoryRequest(args [1]string, w http.ResponseWrit
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -670,13 +740,13 @@ func (s *Server) handleDeleteCategoryRequest(args [1]string, w http.ResponseWrit
 			ID:   "deleteCategory",
 		}
 	)
-	params, err := decodeDeleteCategoryParams(args, r)
+	params, err := decodeDeleteCategoryParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -684,10 +754,11 @@ func (s *Server) handleDeleteCategoryRequest(args [1]string, w http.ResponseWrit
 	var response DeleteCategoryRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "DeleteCategory",
-			OperationID:   "deleteCategory",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "DeleteCategory",
+			OperationSummary: "Deletes a Category by ID",
+			OperationID:      "deleteCategory",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -719,14 +790,16 @@ func (s *Server) handleDeleteCategoryRequest(args [1]string, w http.ResponseWrit
 		response, err = s.h.DeleteCategory(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeDeleteCategoryResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -736,7 +809,7 @@ func (s *Server) handleDeleteCategoryRequest(args [1]string, w http.ResponseWrit
 // Deletes the Hat with the requested ID.
 //
 // DELETE /hats/{id}
-func (s *Server) handleDeleteHatRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleDeleteHatRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("deleteHat"),
 		semconv.HTTPMethodKey.String("DELETE"),
@@ -750,21 +823,28 @@ func (s *Server) handleDeleteHatRequest(args [1]string, w http.ResponseWriter, r
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -772,13 +852,13 @@ func (s *Server) handleDeleteHatRequest(args [1]string, w http.ResponseWriter, r
 			ID:   "deleteHat",
 		}
 	)
-	params, err := decodeDeleteHatParams(args, r)
+	params, err := decodeDeleteHatParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -786,10 +866,11 @@ func (s *Server) handleDeleteHatRequest(args [1]string, w http.ResponseWriter, r
 	var response DeleteHatRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "DeleteHat",
-			OperationID:   "deleteHat",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "DeleteHat",
+			OperationSummary: "Deletes a Hat by ID",
+			OperationID:      "deleteHat",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -821,14 +902,16 @@ func (s *Server) handleDeleteHatRequest(args [1]string, w http.ResponseWriter, r
 		response, err = s.h.DeleteHat(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeDeleteHatResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -838,7 +921,7 @@ func (s *Server) handleDeleteHatRequest(args [1]string, w http.ResponseWriter, r
 // Deletes the Pet with the requested ID.
 //
 // DELETE /pets/{id}
-func (s *Server) handleDeletePetRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleDeletePetRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("deletePet"),
 		semconv.HTTPMethodKey.String("DELETE"),
@@ -852,21 +935,28 @@ func (s *Server) handleDeletePetRequest(args [1]string, w http.ResponseWriter, r
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -874,13 +964,13 @@ func (s *Server) handleDeletePetRequest(args [1]string, w http.ResponseWriter, r
 			ID:   "deletePet",
 		}
 	)
-	params, err := decodeDeletePetParams(args, r)
+	params, err := decodeDeletePetParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -888,10 +978,11 @@ func (s *Server) handleDeletePetRequest(args [1]string, w http.ResponseWriter, r
 	var response DeletePetRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "DeletePet",
-			OperationID:   "deletePet",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "DeletePet",
+			OperationSummary: "Deletes a Pet by ID",
+			OperationID:      "deletePet",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -923,14 +1014,16 @@ func (s *Server) handleDeletePetRequest(args [1]string, w http.ResponseWriter, r
 		response, err = s.h.DeletePet(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeDeletePetResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -940,7 +1033,7 @@ func (s *Server) handleDeletePetRequest(args [1]string, w http.ResponseWriter, r
 // Deletes the User with the requested ID.
 //
 // DELETE /users/{id}
-func (s *Server) handleDeleteUserRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleDeleteUserRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("deleteUser"),
 		semconv.HTTPMethodKey.String("DELETE"),
@@ -954,21 +1047,28 @@ func (s *Server) handleDeleteUserRequest(args [1]string, w http.ResponseWriter, 
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -976,13 +1076,13 @@ func (s *Server) handleDeleteUserRequest(args [1]string, w http.ResponseWriter, 
 			ID:   "deleteUser",
 		}
 	)
-	params, err := decodeDeleteUserParams(args, r)
+	params, err := decodeDeleteUserParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -990,10 +1090,11 @@ func (s *Server) handleDeleteUserRequest(args [1]string, w http.ResponseWriter, 
 	var response DeleteUserRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "DeleteUser",
-			OperationID:   "deleteUser",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "DeleteUser",
+			OperationSummary: "Deletes a User by ID",
+			OperationID:      "deleteUser",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -1025,14 +1126,16 @@ func (s *Server) handleDeleteUserRequest(args [1]string, w http.ResponseWriter, 
 		response, err = s.h.DeleteUser(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeDeleteUserResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -1042,7 +1145,7 @@ func (s *Server) handleDeleteUserRequest(args [1]string, w http.ResponseWriter, 
 // List AllTypes.
 //
 // GET /all-types
-func (s *Server) handleListAllTypesRequest(args [0]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListAllTypesRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("listAllTypes"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -1056,21 +1159,28 @@ func (s *Server) handleListAllTypesRequest(args [0]string, w http.ResponseWriter
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -1078,13 +1188,13 @@ func (s *Server) handleListAllTypesRequest(args [0]string, w http.ResponseWriter
 			ID:   "listAllTypes",
 		}
 	)
-	params, err := decodeListAllTypesParams(args, r)
+	params, err := decodeListAllTypesParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -1092,10 +1202,11 @@ func (s *Server) handleListAllTypesRequest(args [0]string, w http.ResponseWriter
 	var response ListAllTypesRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ListAllTypes",
-			OperationID:   "listAllTypes",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ListAllTypes",
+			OperationSummary: "List AllTypes",
+			OperationID:      "listAllTypes",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "page",
@@ -1131,14 +1242,16 @@ func (s *Server) handleListAllTypesRequest(args [0]string, w http.ResponseWriter
 		response, err = s.h.ListAllTypes(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeListAllTypesResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -1148,7 +1261,7 @@ func (s *Server) handleListAllTypesRequest(args [0]string, w http.ResponseWriter
 // List Categories.
 //
 // GET /categories
-func (s *Server) handleListCategoryRequest(args [0]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListCategoryRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("listCategory"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -1162,21 +1275,28 @@ func (s *Server) handleListCategoryRequest(args [0]string, w http.ResponseWriter
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -1184,13 +1304,13 @@ func (s *Server) handleListCategoryRequest(args [0]string, w http.ResponseWriter
 			ID:   "listCategory",
 		}
 	)
-	params, err := decodeListCategoryParams(args, r)
+	params, err := decodeListCategoryParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -1198,10 +1318,11 @@ func (s *Server) handleListCategoryRequest(args [0]string, w http.ResponseWriter
 	var response ListCategoryRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ListCategory",
-			OperationID:   "listCategory",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ListCategory",
+			OperationSummary: "List Categories",
+			OperationID:      "listCategory",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "page",
@@ -1237,14 +1358,16 @@ func (s *Server) handleListCategoryRequest(args [0]string, w http.ResponseWriter
 		response, err = s.h.ListCategory(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeListCategoryResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -1254,7 +1377,7 @@ func (s *Server) handleListCategoryRequest(args [0]string, w http.ResponseWriter
 // List attached Pets.
 //
 // GET /categories/{id}/pets
-func (s *Server) handleListCategoryPetsRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListCategoryPetsRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("listCategoryPets"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -1268,21 +1391,28 @@ func (s *Server) handleListCategoryPetsRequest(args [1]string, w http.ResponseWr
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -1290,13 +1420,13 @@ func (s *Server) handleListCategoryPetsRequest(args [1]string, w http.ResponseWr
 			ID:   "listCategoryPets",
 		}
 	)
-	params, err := decodeListCategoryPetsParams(args, r)
+	params, err := decodeListCategoryPetsParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -1304,10 +1434,11 @@ func (s *Server) handleListCategoryPetsRequest(args [1]string, w http.ResponseWr
 	var response ListCategoryPetsRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ListCategoryPets",
-			OperationID:   "listCategoryPets",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ListCategoryPets",
+			OperationSummary: "List attached Pets",
+			OperationID:      "listCategoryPets",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -1347,14 +1478,16 @@ func (s *Server) handleListCategoryPetsRequest(args [1]string, w http.ResponseWr
 		response, err = s.h.ListCategoryPets(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeListCategoryPetsResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -1364,7 +1497,7 @@ func (s *Server) handleListCategoryPetsRequest(args [1]string, w http.ResponseWr
 // List Hats.
 //
 // GET /hats
-func (s *Server) handleListHatRequest(args [0]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListHatRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("listHat"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -1378,21 +1511,28 @@ func (s *Server) handleListHatRequest(args [0]string, w http.ResponseWriter, r *
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -1400,13 +1540,13 @@ func (s *Server) handleListHatRequest(args [0]string, w http.ResponseWriter, r *
 			ID:   "listHat",
 		}
 	)
-	params, err := decodeListHatParams(args, r)
+	params, err := decodeListHatParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -1414,10 +1554,11 @@ func (s *Server) handleListHatRequest(args [0]string, w http.ResponseWriter, r *
 	var response ListHatRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ListHat",
-			OperationID:   "listHat",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ListHat",
+			OperationSummary: "List Hats",
+			OperationID:      "listHat",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "page",
@@ -1453,14 +1594,16 @@ func (s *Server) handleListHatRequest(args [0]string, w http.ResponseWriter, r *
 		response, err = s.h.ListHat(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeListHatResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -1470,7 +1613,7 @@ func (s *Server) handleListHatRequest(args [0]string, w http.ResponseWriter, r *
 // List Pets.
 //
 // GET /pets
-func (s *Server) handleListPetRequest(args [0]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListPetRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("listPet"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -1484,21 +1627,28 @@ func (s *Server) handleListPetRequest(args [0]string, w http.ResponseWriter, r *
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -1506,13 +1656,13 @@ func (s *Server) handleListPetRequest(args [0]string, w http.ResponseWriter, r *
 			ID:   "listPet",
 		}
 	)
-	params, err := decodeListPetParams(args, r)
+	params, err := decodeListPetParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -1520,10 +1670,11 @@ func (s *Server) handleListPetRequest(args [0]string, w http.ResponseWriter, r *
 	var response ListPetRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ListPet",
-			OperationID:   "listPet",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ListPet",
+			OperationSummary: "List Pets",
+			OperationID:      "listPet",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "page",
@@ -1559,14 +1710,16 @@ func (s *Server) handleListPetRequest(args [0]string, w http.ResponseWriter, r *
 		response, err = s.h.ListPet(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeListPetResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -1576,7 +1729,7 @@ func (s *Server) handleListPetRequest(args [0]string, w http.ResponseWriter, r *
 // List attached Categories.
 //
 // GET /pets/{id}/categories
-func (s *Server) handleListPetCategoriesRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListPetCategoriesRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("listPetCategories"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -1590,21 +1743,28 @@ func (s *Server) handleListPetCategoriesRequest(args [1]string, w http.ResponseW
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -1612,13 +1772,13 @@ func (s *Server) handleListPetCategoriesRequest(args [1]string, w http.ResponseW
 			ID:   "listPetCategories",
 		}
 	)
-	params, err := decodeListPetCategoriesParams(args, r)
+	params, err := decodeListPetCategoriesParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -1626,10 +1786,11 @@ func (s *Server) handleListPetCategoriesRequest(args [1]string, w http.ResponseW
 	var response ListPetCategoriesRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ListPetCategories",
-			OperationID:   "listPetCategories",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ListPetCategories",
+			OperationSummary: "List attached Categories",
+			OperationID:      "listPetCategories",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -1669,14 +1830,16 @@ func (s *Server) handleListPetCategoriesRequest(args [1]string, w http.ResponseW
 		response, err = s.h.ListPetCategories(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeListPetCategoriesResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -1686,7 +1849,7 @@ func (s *Server) handleListPetCategoriesRequest(args [1]string, w http.ResponseW
 // List attached Friends.
 //
 // GET /pets/{id}/friends
-func (s *Server) handleListPetFriendsRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListPetFriendsRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("listPetFriends"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -1700,21 +1863,28 @@ func (s *Server) handleListPetFriendsRequest(args [1]string, w http.ResponseWrit
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -1722,13 +1892,13 @@ func (s *Server) handleListPetFriendsRequest(args [1]string, w http.ResponseWrit
 			ID:   "listPetFriends",
 		}
 	)
-	params, err := decodeListPetFriendsParams(args, r)
+	params, err := decodeListPetFriendsParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -1736,10 +1906,11 @@ func (s *Server) handleListPetFriendsRequest(args [1]string, w http.ResponseWrit
 	var response ListPetFriendsRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ListPetFriends",
-			OperationID:   "listPetFriends",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ListPetFriends",
+			OperationSummary: "List attached Friends",
+			OperationID:      "listPetFriends",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -1779,14 +1950,16 @@ func (s *Server) handleListPetFriendsRequest(args [1]string, w http.ResponseWrit
 		response, err = s.h.ListPetFriends(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeListPetFriendsResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -1796,7 +1969,7 @@ func (s *Server) handleListPetFriendsRequest(args [1]string, w http.ResponseWrit
 // List attached Rescuers.
 //
 // GET /pets/{id}/rescuer
-func (s *Server) handleListPetRescuerRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListPetRescuerRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("listPetRescuer"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -1810,21 +1983,28 @@ func (s *Server) handleListPetRescuerRequest(args [1]string, w http.ResponseWrit
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -1832,13 +2012,13 @@ func (s *Server) handleListPetRescuerRequest(args [1]string, w http.ResponseWrit
 			ID:   "listPetRescuer",
 		}
 	)
-	params, err := decodeListPetRescuerParams(args, r)
+	params, err := decodeListPetRescuerParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -1846,10 +2026,11 @@ func (s *Server) handleListPetRescuerRequest(args [1]string, w http.ResponseWrit
 	var response ListPetRescuerRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ListPetRescuer",
-			OperationID:   "listPetRescuer",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ListPetRescuer",
+			OperationSummary: "List attached Rescuers",
+			OperationID:      "listPetRescuer",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -1889,14 +2070,16 @@ func (s *Server) handleListPetRescuerRequest(args [1]string, w http.ResponseWrit
 		response, err = s.h.ListPetRescuer(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeListPetRescuerResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -1906,7 +2089,7 @@ func (s *Server) handleListPetRescuerRequest(args [1]string, w http.ResponseWrit
 // List Users.
 //
 // GET /users
-func (s *Server) handleListUserRequest(args [0]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListUserRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("listUser"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -1920,21 +2103,28 @@ func (s *Server) handleListUserRequest(args [0]string, w http.ResponseWriter, r 
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -1942,13 +2132,13 @@ func (s *Server) handleListUserRequest(args [0]string, w http.ResponseWriter, r 
 			ID:   "listUser",
 		}
 	)
-	params, err := decodeListUserParams(args, r)
+	params, err := decodeListUserParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -1956,10 +2146,11 @@ func (s *Server) handleListUserRequest(args [0]string, w http.ResponseWriter, r 
 	var response ListUserRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ListUser",
-			OperationID:   "listUser",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ListUser",
+			OperationSummary: "List Users",
+			OperationID:      "listUser",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "page",
@@ -1995,14 +2186,16 @@ func (s *Server) handleListUserRequest(args [0]string, w http.ResponseWriter, r 
 		response, err = s.h.ListUser(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeListUserResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -2012,7 +2205,7 @@ func (s *Server) handleListUserRequest(args [0]string, w http.ResponseWriter, r 
 // List attached AnimalsSaveds.
 //
 // GET /users/{id}/animals-saved
-func (s *Server) handleListUserAnimalsSavedRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListUserAnimalsSavedRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("listUserAnimalsSaved"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -2026,21 +2219,28 @@ func (s *Server) handleListUserAnimalsSavedRequest(args [1]string, w http.Respon
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -2048,13 +2248,13 @@ func (s *Server) handleListUserAnimalsSavedRequest(args [1]string, w http.Respon
 			ID:   "listUserAnimalsSaved",
 		}
 	)
-	params, err := decodeListUserAnimalsSavedParams(args, r)
+	params, err := decodeListUserAnimalsSavedParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -2062,10 +2262,11 @@ func (s *Server) handleListUserAnimalsSavedRequest(args [1]string, w http.Respon
 	var response ListUserAnimalsSavedRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ListUserAnimalsSaved",
-			OperationID:   "listUserAnimalsSaved",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ListUserAnimalsSaved",
+			OperationSummary: "List attached AnimalsSaveds",
+			OperationID:      "listUserAnimalsSaved",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -2105,14 +2306,16 @@ func (s *Server) handleListUserAnimalsSavedRequest(args [1]string, w http.Respon
 		response, err = s.h.ListUserAnimalsSaved(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeListUserAnimalsSavedResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -2122,7 +2325,7 @@ func (s *Server) handleListUserAnimalsSavedRequest(args [1]string, w http.Respon
 // List attached Pets.
 //
 // GET /users/{id}/pets
-func (s *Server) handleListUserPetsRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListUserPetsRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("listUserPets"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -2136,21 +2339,28 @@ func (s *Server) handleListUserPetsRequest(args [1]string, w http.ResponseWriter
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -2158,13 +2368,13 @@ func (s *Server) handleListUserPetsRequest(args [1]string, w http.ResponseWriter
 			ID:   "listUserPets",
 		}
 	)
-	params, err := decodeListUserPetsParams(args, r)
+	params, err := decodeListUserPetsParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -2172,10 +2382,11 @@ func (s *Server) handleListUserPetsRequest(args [1]string, w http.ResponseWriter
 	var response ListUserPetsRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ListUserPets",
-			OperationID:   "listUserPets",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ListUserPets",
+			OperationSummary: "List attached Pets",
+			OperationID:      "listUserPets",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -2215,14 +2426,16 @@ func (s *Server) handleListUserPetsRequest(args [1]string, w http.ResponseWriter
 		response, err = s.h.ListUserPets(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeListUserPetsResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -2232,7 +2445,7 @@ func (s *Server) handleListUserPetsRequest(args [1]string, w http.ResponseWriter
 // Finds the AllTypes with the requested ID and returns it.
 //
 // GET /all-types/{id}
-func (s *Server) handleReadAllTypesRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReadAllTypesRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("readAllTypes"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -2246,21 +2459,28 @@ func (s *Server) handleReadAllTypesRequest(args [1]string, w http.ResponseWriter
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -2268,13 +2488,13 @@ func (s *Server) handleReadAllTypesRequest(args [1]string, w http.ResponseWriter
 			ID:   "readAllTypes",
 		}
 	)
-	params, err := decodeReadAllTypesParams(args, r)
+	params, err := decodeReadAllTypesParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -2282,10 +2502,11 @@ func (s *Server) handleReadAllTypesRequest(args [1]string, w http.ResponseWriter
 	var response ReadAllTypesRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ReadAllTypes",
-			OperationID:   "readAllTypes",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ReadAllTypes",
+			OperationSummary: "Find a AllTypes by ID",
+			OperationID:      "readAllTypes",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -2317,14 +2538,16 @@ func (s *Server) handleReadAllTypesRequest(args [1]string, w http.ResponseWriter
 		response, err = s.h.ReadAllTypes(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeReadAllTypesResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -2334,7 +2557,7 @@ func (s *Server) handleReadAllTypesRequest(args [1]string, w http.ResponseWriter
 // Finds the Category with the requested ID and returns it.
 //
 // GET /categories/{id}
-func (s *Server) handleReadCategoryRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReadCategoryRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("readCategory"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -2348,21 +2571,28 @@ func (s *Server) handleReadCategoryRequest(args [1]string, w http.ResponseWriter
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -2370,13 +2600,13 @@ func (s *Server) handleReadCategoryRequest(args [1]string, w http.ResponseWriter
 			ID:   "readCategory",
 		}
 	)
-	params, err := decodeReadCategoryParams(args, r)
+	params, err := decodeReadCategoryParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -2384,10 +2614,11 @@ func (s *Server) handleReadCategoryRequest(args [1]string, w http.ResponseWriter
 	var response ReadCategoryRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ReadCategory",
-			OperationID:   "readCategory",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ReadCategory",
+			OperationSummary: "Find a Category by ID",
+			OperationID:      "readCategory",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -2419,14 +2650,16 @@ func (s *Server) handleReadCategoryRequest(args [1]string, w http.ResponseWriter
 		response, err = s.h.ReadCategory(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeReadCategoryResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -2436,7 +2669,7 @@ func (s *Server) handleReadCategoryRequest(args [1]string, w http.ResponseWriter
 // Finds the Hat with the requested ID and returns it.
 //
 // GET /hats/{id}
-func (s *Server) handleReadHatRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReadHatRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("readHat"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -2450,21 +2683,28 @@ func (s *Server) handleReadHatRequest(args [1]string, w http.ResponseWriter, r *
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -2472,13 +2712,13 @@ func (s *Server) handleReadHatRequest(args [1]string, w http.ResponseWriter, r *
 			ID:   "readHat",
 		}
 	)
-	params, err := decodeReadHatParams(args, r)
+	params, err := decodeReadHatParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -2486,10 +2726,11 @@ func (s *Server) handleReadHatRequest(args [1]string, w http.ResponseWriter, r *
 	var response ReadHatRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ReadHat",
-			OperationID:   "readHat",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ReadHat",
+			OperationSummary: "Find a Hat by ID",
+			OperationID:      "readHat",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -2521,14 +2762,16 @@ func (s *Server) handleReadHatRequest(args [1]string, w http.ResponseWriter, r *
 		response, err = s.h.ReadHat(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeReadHatResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -2538,7 +2781,7 @@ func (s *Server) handleReadHatRequest(args [1]string, w http.ResponseWriter, r *
 // Find the attached User of the Hat with the given ID.
 //
 // GET /hats/{id}/wearer
-func (s *Server) handleReadHatWearerRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReadHatWearerRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("readHatWearer"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -2552,21 +2795,28 @@ func (s *Server) handleReadHatWearerRequest(args [1]string, w http.ResponseWrite
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -2574,13 +2824,13 @@ func (s *Server) handleReadHatWearerRequest(args [1]string, w http.ResponseWrite
 			ID:   "readHatWearer",
 		}
 	)
-	params, err := decodeReadHatWearerParams(args, r)
+	params, err := decodeReadHatWearerParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -2588,10 +2838,11 @@ func (s *Server) handleReadHatWearerRequest(args [1]string, w http.ResponseWrite
 	var response ReadHatWearerRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ReadHatWearer",
-			OperationID:   "readHatWearer",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ReadHatWearer",
+			OperationSummary: "Find the attached User",
+			OperationID:      "readHatWearer",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -2623,14 +2874,16 @@ func (s *Server) handleReadHatWearerRequest(args [1]string, w http.ResponseWrite
 		response, err = s.h.ReadHatWearer(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeReadHatWearerResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -2640,7 +2893,7 @@ func (s *Server) handleReadHatWearerRequest(args [1]string, w http.ResponseWrite
 // Finds the Pet with the requested ID and returns it.
 //
 // GET /pets/{id}
-func (s *Server) handleReadPetRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReadPetRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("readPet"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -2654,21 +2907,28 @@ func (s *Server) handleReadPetRequest(args [1]string, w http.ResponseWriter, r *
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -2676,13 +2936,13 @@ func (s *Server) handleReadPetRequest(args [1]string, w http.ResponseWriter, r *
 			ID:   "readPet",
 		}
 	)
-	params, err := decodeReadPetParams(args, r)
+	params, err := decodeReadPetParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -2690,10 +2950,11 @@ func (s *Server) handleReadPetRequest(args [1]string, w http.ResponseWriter, r *
 	var response ReadPetRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ReadPet",
-			OperationID:   "readPet",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ReadPet",
+			OperationSummary: "Find a Pet by ID",
+			OperationID:      "readPet",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -2725,14 +2986,16 @@ func (s *Server) handleReadPetRequest(args [1]string, w http.ResponseWriter, r *
 		response, err = s.h.ReadPet(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeReadPetResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -2742,7 +3005,7 @@ func (s *Server) handleReadPetRequest(args [1]string, w http.ResponseWriter, r *
 // Find the attached User of the Pet with the given ID.
 //
 // GET /pets/{id}/owner
-func (s *Server) handleReadPetOwnerRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReadPetOwnerRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("readPetOwner"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -2756,21 +3019,28 @@ func (s *Server) handleReadPetOwnerRequest(args [1]string, w http.ResponseWriter
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -2778,13 +3048,13 @@ func (s *Server) handleReadPetOwnerRequest(args [1]string, w http.ResponseWriter
 			ID:   "readPetOwner",
 		}
 	)
-	params, err := decodeReadPetOwnerParams(args, r)
+	params, err := decodeReadPetOwnerParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -2792,10 +3062,11 @@ func (s *Server) handleReadPetOwnerRequest(args [1]string, w http.ResponseWriter
 	var response ReadPetOwnerRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ReadPetOwner",
-			OperationID:   "readPetOwner",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ReadPetOwner",
+			OperationSummary: "Find the attached User",
+			OperationID:      "readPetOwner",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -2827,14 +3098,16 @@ func (s *Server) handleReadPetOwnerRequest(args [1]string, w http.ResponseWriter
 		response, err = s.h.ReadPetOwner(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeReadPetOwnerResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -2844,7 +3117,7 @@ func (s *Server) handleReadPetOwnerRequest(args [1]string, w http.ResponseWriter
 // Finds the User with the requested ID and returns it.
 //
 // GET /users/{id}
-func (s *Server) handleReadUserRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReadUserRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("readUser"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -2858,21 +3131,28 @@ func (s *Server) handleReadUserRequest(args [1]string, w http.ResponseWriter, r 
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -2880,13 +3160,13 @@ func (s *Server) handleReadUserRequest(args [1]string, w http.ResponseWriter, r 
 			ID:   "readUser",
 		}
 	)
-	params, err := decodeReadUserParams(args, r)
+	params, err := decodeReadUserParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -2894,10 +3174,11 @@ func (s *Server) handleReadUserRequest(args [1]string, w http.ResponseWriter, r 
 	var response ReadUserRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ReadUser",
-			OperationID:   "readUser",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ReadUser",
+			OperationSummary: "Find a User by ID",
+			OperationID:      "readUser",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -2929,14 +3210,16 @@ func (s *Server) handleReadUserRequest(args [1]string, w http.ResponseWriter, r 
 		response, err = s.h.ReadUser(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeReadUserResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -2946,7 +3229,7 @@ func (s *Server) handleReadUserRequest(args [1]string, w http.ResponseWriter, r 
 // Find the attached User of the User with the given ID.
 //
 // GET /users/{id}/best-friend
-func (s *Server) handleReadUserBestFriendRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReadUserBestFriendRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("readUserBestFriend"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -2960,21 +3243,28 @@ func (s *Server) handleReadUserBestFriendRequest(args [1]string, w http.Response
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -2982,13 +3272,13 @@ func (s *Server) handleReadUserBestFriendRequest(args [1]string, w http.Response
 			ID:   "readUserBestFriend",
 		}
 	)
-	params, err := decodeReadUserBestFriendParams(args, r)
+	params, err := decodeReadUserBestFriendParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -2996,10 +3286,11 @@ func (s *Server) handleReadUserBestFriendRequest(args [1]string, w http.Response
 	var response ReadUserBestFriendRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ReadUserBestFriend",
-			OperationID:   "readUserBestFriend",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ReadUserBestFriend",
+			OperationSummary: "Find the attached User",
+			OperationID:      "readUserBestFriend",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -3031,14 +3322,16 @@ func (s *Server) handleReadUserBestFriendRequest(args [1]string, w http.Response
 		response, err = s.h.ReadUserBestFriend(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeReadUserBestFriendResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -3048,7 +3341,7 @@ func (s *Server) handleReadUserBestFriendRequest(args [1]string, w http.Response
 // Find the attached Hat of the User with the given ID.
 //
 // GET /users/{id}/favorite-hat
-func (s *Server) handleReadUserFavoriteHatRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReadUserFavoriteHatRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("readUserFavoriteHat"),
 		semconv.HTTPMethodKey.String("GET"),
@@ -3062,21 +3355,28 @@ func (s *Server) handleReadUserFavoriteHatRequest(args [1]string, w http.Respons
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -3084,13 +3384,13 @@ func (s *Server) handleReadUserFavoriteHatRequest(args [1]string, w http.Respons
 			ID:   "readUserFavoriteHat",
 		}
 	)
-	params, err := decodeReadUserFavoriteHatParams(args, r)
+	params, err := decodeReadUserFavoriteHatParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -3098,10 +3398,11 @@ func (s *Server) handleReadUserFavoriteHatRequest(args [1]string, w http.Respons
 	var response ReadUserFavoriteHatRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "ReadUserFavoriteHat",
-			OperationID:   "readUserFavoriteHat",
-			Body:          nil,
+			Context:          ctx,
+			OperationName:    "ReadUserFavoriteHat",
+			OperationSummary: "Find the attached Hat",
+			OperationID:      "readUserFavoriteHat",
+			Body:             nil,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -3133,14 +3434,16 @@ func (s *Server) handleReadUserFavoriteHatRequest(args [1]string, w http.Respons
 		response, err = s.h.ReadUserFavoriteHat(ctx, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeReadUserFavoriteHatResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -3150,7 +3453,7 @@ func (s *Server) handleReadUserFavoriteHatRequest(args [1]string, w http.Respons
 // Updates a AllTypes and persists changes to storage.
 //
 // PATCH /all-types/{id}
-func (s *Server) handleUpdateAllTypesRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUpdateAllTypesRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("updateAllTypes"),
 		semconv.HTTPMethodKey.String("PATCH"),
@@ -3164,21 +3467,28 @@ func (s *Server) handleUpdateAllTypesRequest(args [1]string, w http.ResponseWrit
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -3186,13 +3496,13 @@ func (s *Server) handleUpdateAllTypesRequest(args [1]string, w http.ResponseWrit
 			ID:   "updateAllTypes",
 		}
 	)
-	params, err := decodeUpdateAllTypesParams(args, r)
+	params, err := decodeUpdateAllTypesParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -3202,7 +3512,7 @@ func (s *Server) handleUpdateAllTypesRequest(args [1]string, w http.ResponseWrit
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeRequest", err)
+		defer recordError("DecodeRequest", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -3215,10 +3525,11 @@ func (s *Server) handleUpdateAllTypesRequest(args [1]string, w http.ResponseWrit
 	var response UpdateAllTypesRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "UpdateAllTypes",
-			OperationID:   "updateAllTypes",
-			Body:          request,
+			Context:          ctx,
+			OperationName:    "UpdateAllTypes",
+			OperationSummary: "Updates a AllTypes",
+			OperationID:      "updateAllTypes",
+			Body:             request,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -3250,14 +3561,16 @@ func (s *Server) handleUpdateAllTypesRequest(args [1]string, w http.ResponseWrit
 		response, err = s.h.UpdateAllTypes(ctx, request, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeUpdateAllTypesResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -3267,7 +3580,7 @@ func (s *Server) handleUpdateAllTypesRequest(args [1]string, w http.ResponseWrit
 // Updates a Category and persists changes to storage.
 //
 // PATCH /categories/{id}
-func (s *Server) handleUpdateCategoryRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUpdateCategoryRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("updateCategory"),
 		semconv.HTTPMethodKey.String("PATCH"),
@@ -3281,21 +3594,28 @@ func (s *Server) handleUpdateCategoryRequest(args [1]string, w http.ResponseWrit
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -3303,13 +3623,13 @@ func (s *Server) handleUpdateCategoryRequest(args [1]string, w http.ResponseWrit
 			ID:   "updateCategory",
 		}
 	)
-	params, err := decodeUpdateCategoryParams(args, r)
+	params, err := decodeUpdateCategoryParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -3319,7 +3639,7 @@ func (s *Server) handleUpdateCategoryRequest(args [1]string, w http.ResponseWrit
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeRequest", err)
+		defer recordError("DecodeRequest", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -3332,10 +3652,11 @@ func (s *Server) handleUpdateCategoryRequest(args [1]string, w http.ResponseWrit
 	var response UpdateCategoryRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "UpdateCategory",
-			OperationID:   "updateCategory",
-			Body:          request,
+			Context:          ctx,
+			OperationName:    "UpdateCategory",
+			OperationSummary: "Updates a Category",
+			OperationID:      "updateCategory",
+			Body:             request,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -3367,14 +3688,16 @@ func (s *Server) handleUpdateCategoryRequest(args [1]string, w http.ResponseWrit
 		response, err = s.h.UpdateCategory(ctx, request, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeUpdateCategoryResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -3384,7 +3707,7 @@ func (s *Server) handleUpdateCategoryRequest(args [1]string, w http.ResponseWrit
 // Updates a Hat and persists changes to storage.
 //
 // PATCH /hats/{id}
-func (s *Server) handleUpdateHatRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUpdateHatRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("updateHat"),
 		semconv.HTTPMethodKey.String("PATCH"),
@@ -3398,21 +3721,28 @@ func (s *Server) handleUpdateHatRequest(args [1]string, w http.ResponseWriter, r
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -3420,13 +3750,13 @@ func (s *Server) handleUpdateHatRequest(args [1]string, w http.ResponseWriter, r
 			ID:   "updateHat",
 		}
 	)
-	params, err := decodeUpdateHatParams(args, r)
+	params, err := decodeUpdateHatParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -3436,7 +3766,7 @@ func (s *Server) handleUpdateHatRequest(args [1]string, w http.ResponseWriter, r
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeRequest", err)
+		defer recordError("DecodeRequest", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -3449,10 +3779,11 @@ func (s *Server) handleUpdateHatRequest(args [1]string, w http.ResponseWriter, r
 	var response UpdateHatRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "UpdateHat",
-			OperationID:   "updateHat",
-			Body:          request,
+			Context:          ctx,
+			OperationName:    "UpdateHat",
+			OperationSummary: "Updates a Hat",
+			OperationID:      "updateHat",
+			Body:             request,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -3484,14 +3815,16 @@ func (s *Server) handleUpdateHatRequest(args [1]string, w http.ResponseWriter, r
 		response, err = s.h.UpdateHat(ctx, request, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeUpdateHatResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -3501,7 +3834,7 @@ func (s *Server) handleUpdateHatRequest(args [1]string, w http.ResponseWriter, r
 // Updates a Pet and persists changes to storage.
 //
 // PATCH /pets/{id}
-func (s *Server) handleUpdatePetRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUpdatePetRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("updatePet"),
 		semconv.HTTPMethodKey.String("PATCH"),
@@ -3515,21 +3848,28 @@ func (s *Server) handleUpdatePetRequest(args [1]string, w http.ResponseWriter, r
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -3537,13 +3877,13 @@ func (s *Server) handleUpdatePetRequest(args [1]string, w http.ResponseWriter, r
 			ID:   "updatePet",
 		}
 	)
-	params, err := decodeUpdatePetParams(args, r)
+	params, err := decodeUpdatePetParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -3553,7 +3893,7 @@ func (s *Server) handleUpdatePetRequest(args [1]string, w http.ResponseWriter, r
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeRequest", err)
+		defer recordError("DecodeRequest", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -3566,10 +3906,11 @@ func (s *Server) handleUpdatePetRequest(args [1]string, w http.ResponseWriter, r
 	var response UpdatePetRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "UpdatePet",
-			OperationID:   "updatePet",
-			Body:          request,
+			Context:          ctx,
+			OperationName:    "UpdatePet",
+			OperationSummary: "Updates a Pet",
+			OperationID:      "updatePet",
+			Body:             request,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -3601,14 +3942,16 @@ func (s *Server) handleUpdatePetRequest(args [1]string, w http.ResponseWriter, r
 		response, err = s.h.UpdatePet(ctx, request, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeUpdatePetResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
@@ -3618,7 +3961,7 @@ func (s *Server) handleUpdatePetRequest(args [1]string, w http.ResponseWriter, r
 // Updates a User and persists changes to storage.
 //
 // PATCH /users/{id}
-func (s *Server) handleUpdateUserRequest(args [1]string, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUpdateUserRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("updateUser"),
 		semconv.HTTPMethodKey.String("PATCH"),
@@ -3632,21 +3975,28 @@ func (s *Server) handleUpdateUserRequest(args [1]string, w http.ResponseWriter, 
 	)
 	defer span.End()
 
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
 	// Run stopwatch.
 	startTime := time.Now()
 	defer func() {
 		elapsedDuration := time.Since(startTime)
-		s.duration.Record(ctx, elapsedDuration.Microseconds(), otelAttrs...)
-	}()
+		attrOpt := metric.WithAttributeSet(labeler.AttributeSet())
 
-	// Increment request counter.
-	s.requests.Add(ctx, 1, otelAttrs...)
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(float64(elapsedDuration)/float64(time.Millisecond)), attrOpt)
+	}()
 
 	var (
 		recordError = func(stage string, err error) {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, stage)
-			s.errors.Add(ctx, 1, otelAttrs...)
+			s.errors.Add(ctx, 1, metric.WithAttributeSet(labeler.AttributeSet()))
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
@@ -3654,13 +4004,13 @@ func (s *Server) handleUpdateUserRequest(args [1]string, w http.ResponseWriter, 
 			ID:   "updateUser",
 		}
 	)
-	params, err := decodeUpdateUserParams(args, r)
+	params, err := decodeUpdateUserParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeParams", err)
+		defer recordError("DecodeParams", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -3670,7 +4020,7 @@ func (s *Server) handleUpdateUserRequest(args [1]string, w http.ResponseWriter, 
 			OperationContext: opErrContext,
 			Err:              err,
 		}
-		recordError("DecodeRequest", err)
+		defer recordError("DecodeRequest", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
@@ -3683,10 +4033,11 @@ func (s *Server) handleUpdateUserRequest(args [1]string, w http.ResponseWriter, 
 	var response UpdateUserRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
-			Context:       ctx,
-			OperationName: "UpdateUser",
-			OperationID:   "updateUser",
-			Body:          request,
+			Context:          ctx,
+			OperationName:    "UpdateUser",
+			OperationSummary: "Updates a User",
+			OperationID:      "updateUser",
+			Body:             request,
 			Params: middleware.Parameters{
 				{
 					Name: "id",
@@ -3718,14 +4069,16 @@ func (s *Server) handleUpdateUserRequest(args [1]string, w http.ResponseWriter, 
 		response, err = s.h.UpdateUser(ctx, request, params)
 	}
 	if err != nil {
-		recordError("Internal", err)
+		defer recordError("Internal", err)
 		s.cfg.ErrorHandler(ctx, w, r, err)
 		return
 	}
 
 	if err := encodeUpdateUserResponse(response, w, span); err != nil {
-		recordError("EncodeResponse", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
 		return
 	}
 }
